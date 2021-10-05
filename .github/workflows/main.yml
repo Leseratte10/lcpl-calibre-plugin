@@ -1,0 +1,22 @@
+name: Build binaries
+on:
+  push:
+    branches: [ master ]
+
+jobs: 
+  build-linux:
+    runs-on: ubuntu-latest
+    steps: 
+      - uses: actions/checkout@v2
+
+      - name: Compile
+        run: |
+          ./bundle_calibre_plugin.sh
+
+      - name: Upload
+        uses: actions/upload-artifact@v2
+        with: 
+          name: linux
+          path: |
+            calibre-plugin.zip
+    
