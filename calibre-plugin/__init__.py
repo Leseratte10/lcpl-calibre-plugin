@@ -17,9 +17,10 @@
 
 # Revision history: 
 # v0.0.1: First public version
+# v0.0.2: Add support for Python2
 
 from calibre.customize import FileTypePlugin        # type: ignore
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 
 PLUGIN_NAME = "LCPL Input"
 PLUGIN_VERSION_TUPLE = tuple([int(x) for x in __version__.split(".")])
@@ -31,7 +32,12 @@ PLUGIN_VERSION = ".".join([str(x)for x in PLUGIN_VERSION_TUPLE])
 import json
 import os
 import hashlib
-import urllib.request
+try:
+    # Python 3 
+    from urllib.request import Request, urlopen
+except: 
+    # Python 2
+    from urllib2 import Request, urlopen
 import dateutil.parser
 import datetime
 import traceback
@@ -45,7 +51,7 @@ class LCPLInput(FileTypePlugin):
     supported_platforms         = ['linux', 'osx', 'windows']
     author                      = "Leseratte10"
     version                     = PLUGIN_VERSION_TUPLE
-    minimum_calibre_version     = (5, 0, 0)
+    minimum_calibre_version     = (4, 10, 0)
     file_types                  = set(['lcpl'])
     on_import                   = True
     on_preprocess               = True
@@ -69,7 +75,11 @@ class LCPLInput(FileTypePlugin):
         import calibre_plugins.lcplinput.config as config   # type: ignore
         return config.ConfigWidget(self.plugin_path)
 
-    def parseLCPLdownloadBook(self, lcpl_string: str):
+    def save_settings(self, config_widget):
+        config_widget.save_settings()
+
+    def parseLCPLdownloadBook(self, lcpl_string):
+        # type : lcpl_string: str
 
         import calibre_plugins.lcplinput.prefs as prefs     # type: ignore
         settings = prefs.LCPLInput_Prefs()
@@ -91,7 +101,14 @@ class LCPLInput(FileTypePlugin):
         if ("rights" in license and "end" in license["rights"]):
             lic_end = dateutil.parser.isoparse(license["rights"]["end"])
 
-        currenttime = datetime.datetime.now(datetime.timezone.utc)
+        try: 
+            # Python 3
+            currenttime = datetime.datetime.now(datetime.timezone.utc)
+        except:
+            # Python 2
+            lic_start = lic_start.replace(tzinfo=None)
+            lic_end = lic_end.replace(tzinfo=None)
+            currenttime = datetime.datetime.utcnow()
 
         is_in_license_range = True
 
@@ -162,8 +179,8 @@ class LCPLInput(FileTypePlugin):
 
         
         try:
-            req = urllib.request.Request(url=dl_link, headers={'User-Agent': ua})
-            handler = urllib.request.urlopen(req)
+            req = Request(url=dl_link, headers={'User-Agent': ua})
+            handler = urlopen(req)
             chunksize = 16 * 1024
 
             ret_code = handler.getcode()
@@ -189,8 +206,8 @@ class LCPLInput(FileTypePlugin):
             dl_link2 = dl_link.replace("{license_id}", license["id"])
             if (dl_link2 != dl_link):
                 try:
-                    req = urllib.request.Request(url=dl_link2, headers={'User-Agent': ua})
-                    handler = urllib.request.urlopen(req)
+                    req = Request(url=dl_link2, headers={'User-Agent': ua})
+                    handler = urlopen(req)
                     chunksize = 16 * 1024
 
                     ret_code = handler.getcode()
@@ -261,7 +278,7 @@ class LCPLInput(FileTypePlugin):
         return outputname
     
 
-    def run(self, path_to_ebook: str):
+    def run(self, path_to_ebook):
         # This code gets called by Calibre with a path to the new book file. 
         # Check if it's actually a valid LCPL file.
 
