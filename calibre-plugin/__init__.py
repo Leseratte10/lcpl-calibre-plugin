@@ -18,9 +18,10 @@
 # Revision history: 
 # v0.0.1: First public version
 # v0.0.2: Add support for Python2
+# v0.0.3: Fix other FileTypePlugins
 
 from calibre.customize import FileTypePlugin        # type: ignore
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 
 PLUGIN_NAME = "LCPL Input"
 PLUGIN_VERSION_TUPLE = tuple([int(x) for x in __version__.split(".")])
@@ -30,7 +31,7 @@ PLUGIN_VERSION = ".".join([str(x)for x in PLUGIN_VERSION_TUPLE])
 # Ton of libraries
 
 import json
-import os
+import os, sys
 import hashlib
 try:
     # Python 3 
@@ -309,6 +310,82 @@ class LCPLInput(FileTypePlugin):
             destination = self.parseLCPLdownloadBook(dataSTR)
 
             if (destination is not None):
+
+                # Okay, looks like we turned the LCPL into a book (EPUB or PDF) successfully. 
+                # Lets now call all FileType plugins that are supposed to run on incoming EPUB or PDF files.
+
+                try: 
+                    from calibre.customize.ui import _initialized_plugins, is_disabled
+                    from calibre.customize import FileTypePlugin
+
+                    original_file_for_plugins = destination
+
+                    oo, oe = sys.stdout, sys.stderr
+
+                    for plugin in _initialized_plugins:
+
+                        #print("{0} v{1}: Plugin '{2}' has prio {3}".format(PLUGIN_NAME, PLUGIN_VERSION, plugin.name, plugin.priority))
+
+                        # Check if this is a FileTypePlugin
+                        if not isinstance(plugin, FileTypePlugin):
+                            #print("{0} v{1}: Plugin '{2}' is no FileTypePlugin, skipping ...".format(PLUGIN_NAME, PLUGIN_VERSION, plugin.name))
+                            continue
+
+                        # Check if it's disabled
+                        if is_disabled(plugin):
+                            #print("{0} v{1}: Plugin '{2}' is disabled, skipping ...".format(PLUGIN_NAME, PLUGIN_VERSION, plugin.name))
+                            continue
+
+                        if plugin.name == self.name:
+                            #print("{0} v{1}: Plugin '{2}' is me - skipping".format(PLUGIN_NAME, PLUGIN_VERSION, plugin.name))
+                            continue
+
+                        # Check if it's supposed to run on import:
+                        if not plugin.on_import:
+                            #print("{0} v{1}: Plugin '{2}' isn't supposed to run during import, skipping ...".format(PLUGIN_NAME, PLUGIN_VERSION, plugin.name))
+                            continue
+
+                        # Check filetype
+                        # If neither the book file extension nor "*" is in the plugin,
+                        # don't execute it.
+                        my_file_type = os.path.splitext(destination)[-1].lower().replace('.', '')
+                        if (not my_file_type in plugin.file_types):
+                            #print("{0} v{1}: Plugin '{2}' doesn't support {3} files, skipping ...".format(PLUGIN_NAME, PLUGIN_VERSION, plugin.name, my_file_type))
+                            continue
+
+                        if ("lcpl" in plugin.file_types or "*" in plugin.file_types):
+                            #print("{0} v{1}: Plugin '{2}' would run anyways, skipping ...".format(PLUGIN_NAME, PLUGIN_VERSION, plugin.name, my_file_type))
+                            continue
+
+                        print("{0} v{1}: Executing plugin {2} ...".format(PLUGIN_NAME, PLUGIN_VERSION, plugin.name))
+
+                        plugin.original_path_to_file = original_file_for_plugins
+
+                        try: 
+                            plugin_ret = None
+                            plugin_ret = plugin.run(destination)
+                        except: 
+                            print("{0} v{1}: Running file type plugin failed with traceback:".format(PLUGIN_NAME, PLUGIN_VERSION))
+                            traceback.print_exc(file=oe)
+
+                        # Restore stdout and stderr, in case a plugin broke them.
+                        sys.stdout, sys.stderr = oo, oe
+
+
+                        if plugin_ret is not None:
+                            # If the plugin returned a new path, update that.
+                            print("{0} v{1}: Plugin returned path '{2}', updating.".format(PLUGIN_NAME, PLUGIN_VERSION, plugin_ret))
+                            destination = plugin_ret
+                        else: 
+                            print("{0} v{1}: Plugin returned nothing - skipping".format(PLUGIN_NAME, PLUGIN_VERSION))
+
+                            
+
+                except: 
+                    print("{0} v{1}: Error while executing other plugins".format(PLUGIN_NAME, PLUGIN_VERSION))
+                    traceback.print_exc()
+                    pass
+
                 return destination
 
 
