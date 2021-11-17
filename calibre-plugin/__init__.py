@@ -20,9 +20,10 @@
 # v0.0.2: Add support for Python2
 # v0.0.3: Fix other FileTypePlugins
 # v0.0.4: Fix Calibre Plugin index / updater
+# v0.0.5: Fix Python2 bug, drop minimum Calibre version to 2.0.0
 
 PLUGIN_NAME = "LCPL Input"
-PLUGIN_VERSION_TUPLE = (0, 0, 4)
+PLUGIN_VERSION_TUPLE = (0, 0, 5)
 
 from calibre.customize import FileTypePlugin        # type: ignore
 __version__ = PLUGIN_VERSION = ".".join([str(x)for x in PLUGIN_VERSION_TUPLE])
@@ -51,7 +52,7 @@ class LCPLInput(FileTypePlugin):
     supported_platforms         = ['linux', 'osx', 'windows']
     author                      = "Leseratte10"
     version                     = PLUGIN_VERSION_TUPLE
-    minimum_calibre_version     = (4, 10, 0)
+    minimum_calibre_version     = (2, 0, 0)
     file_types                  = set(['lcpl'])
     on_import                   = True
     on_preprocess               = True
@@ -106,8 +107,10 @@ class LCPLInput(FileTypePlugin):
             currenttime = datetime.datetime.now(datetime.timezone.utc)
         except:
             # Python 2
-            lic_start = lic_start.replace(tzinfo=None)
-            lic_end = lic_end.replace(tzinfo=None)
+            if lic_start is not None:
+                lic_start = lic_start.replace(tzinfo=None)
+            if lic_end is not None:
+                lic_end = lic_end.replace(tzinfo=None)
             currenttime = datetime.datetime.utcnow()
 
         is_in_license_range = True
